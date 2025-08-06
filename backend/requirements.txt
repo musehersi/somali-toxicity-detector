@@ -1,4 +1,3 @@
-﻿--prefer-binary
 Flask
 Flask-Cors
 gunicorn
@@ -6,4 +5,5 @@ pydub
 requests
 scipy
 base64
+
 
