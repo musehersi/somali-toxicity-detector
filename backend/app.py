@@ -1,75 +1,86 @@
-# This is the new, full content for backend/app.py
+# Final, corrected code for backend/app.py
 
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
-import tempfile
-import requests # <-- We use this to call the API
+import requests
 from datetime import datetime
-
-# Note: You may need to add your supabase imports if they are not here
-# from supabase import create_client, Client
-# from uuid import uuid4
+import base64 # Import for encoding audio
 
 app = Flask(__name__)
 CORS(app)
 
-# --- Load Credentials from Environment Variables ---
-HF_TOKEN = os.getenv("HF_TOKEN")
-# You will also need to add your SUPABASE_URL and SUPABASE_KEY in Render
+# --- Configuration ---
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# You will need to add your SUPABASE_URL and SUPABASE_KEY to Render
 # supabase_url = os.getenv("SUPABASE_URL")
 # supabase_key = os.getenv("SUPABASE_KEY")
 # supabase = create_client(supabase_url, supabase_key)
 
-UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-def query_hf_api(data, model_id):
-    """Helper function to call the Hugging Face Inference API."""
-    API_URL = f"https://api-inference.huggingface.co/models/{model_id}"
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
-    response = requests.post(API_URL, headers=headers, data=data)
-    response.raise_for_status() # This will raise an error for bad responses
+def call_space_api(audio_bytes, space_url):
+    """
+    Helper function to correctly call a Gradio Space API.
+    It encodes the audio in Base64 and sends it in the required JSON format.
+    """
+    # Encode the raw audio bytes into a Base64 string
+    b64_audio = base64.b64encode(audio_bytes).decode()
+    
+    # The Gradio API expects data in this specific JSON structure
+    response = requests.post(
+        space_url,
+        json={"data": [ f"data:audio/wav;base64,{b64_audio}" ]}
+    )
+    response.raise_for_status()
     return response.json()
 
-# --- THIS IS THE FIXED ENDPOINT ---
+# --- API Endpoints ---
+
 @app.route('/api/process', methods=['POST'])
 def process_audio():
     if 'audio' not in request.files:
         return jsonify({"error": "No audio file provided"}), 400
-
+    
     audio_file = request.files['audio']
-    model_type = request.form.get('model_type', 'asr_classification')
+    model_type = request.form.get('model_type')
 
-    # Map the frontend request to the actual Hugging Face model ID
-    if model_type == 'asr_classification':
-        model_id = "ooloteam/wav2vec2-somali"
-    elif model_type == 'audio_to_audio':
-        model_id = "ooloteam/SomaliSpeechToxicityClassifier"
+    # --- IMPORTANT: UPDATE THESE URLS ---
+    # Get these from the "Embed this Space" option on your HF Spaces
+    if model_type == 'audio_to_audio':
+        # Paste the API URL for your TOXICITY CLASSIFIER SPACE here
+        # It should end with /api/predict/
+        space_api_url = "YOUR_TOXICITY_CLASSIFIER_SPACE_API_URL_HERE" 
+    elif model_type == 'asr_classification':
+        # Paste the API URL for your ASR SPACE here
+        # It should also end with /api/predict/
+        space_api_url = "YOUR_ASR_SPACE_API_URL_HERE" 
     else:
-        return jsonify({"error": f"Invalid model type specified"}), 400
+        return jsonify({"error": "Invalid model type"}), 400
+    # ------------------------------------
 
-    # We read the bytes from the uploaded file to send to the API
     audio_bytes = audio_file.read()
 
     try:
-        result = query_hf_api(audio_bytes, model_id)
-        return jsonify({"status": "success", "result": result})
+        # Call your new Space API with the correct helper function
+        api_response = call_space_api(audio_bytes, space_api_url)
+        
+        # Extract the actual prediction from the Gradio API response
+        prediction_data = api_response.get("data", [{}])[0]
+        
+        return jsonify({"status": "success", "result": prediction_data})
     except Exception as e:
-        return jsonify({"error": f"Error calling Hugging Face API: {str(e)}"}), 500
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
-# --- YOUR OTHER ENDPOINTS (UNCHANGED) ---
+
+# --- Your Other Endpoints ---
 
 @app.route('/api/upload', methods=['POST'])
 def upload_audio():
-    if 'audio' not in request.files:
-        return jsonify({'error': 'No audio file provided'}), 400
-
+    if 'audio' not in request.files: return jsonify({'error': 'No audio file provided'}), 400
     file = request.files['audio']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-
+    if file.filename == '': return jsonify({'error': 'No file selected'}), 400
     filename = secure_filename(f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     file.save(filepath)
@@ -83,11 +94,8 @@ def serve_file(filename):
 
 @app.route('/api/feedback', methods=['POST'])
 def submit_feedback():
-    # This endpoint should work as long as you have initialized the 'supabase' client correctly
-    # using your environment variables.
-    data = request.json
-    # ... (your existing feedback logic) ...
-    return jsonify({"message": "Feedback endpoint called - implement Supabase logic here"})
+    # Your feedback logic here. Make sure to initialize the Supabase client.
+    return jsonify({"message": "Feedback endpoint called"})
 
 
 if __name__ == '__main__':
