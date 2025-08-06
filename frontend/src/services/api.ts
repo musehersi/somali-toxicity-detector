@@ -11,7 +11,7 @@ interface AnalysisResult {
 }
 
 class ApiService {
-  private baseUrl = "http://localhost:5000"; // 🛠️ Change this to your deployed backend URL if needed
+  private baseUrl = "https://somali-toxicity-detector.onrender.com"; 
 
   /**
    * Upload audio file to backend for storage (e.g., Supabase or disk)
