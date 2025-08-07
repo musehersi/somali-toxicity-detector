@@ -1,6 +1,6 @@
 // Final, corrected code for frontend/src/services/api.ts
-
-import { gradio } from "@gradio/client";
+// CORRECT
+import { client as gradioClient } from "@gradio/client";
 
 class ApiService {
   async detectToxicity(
