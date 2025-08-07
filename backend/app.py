@@ -1,12 +1,12 @@
-# Final, complete code for backend/app.py
+# Final, corrected code for backend/app.py using gradio_client
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
-import requests
+import tempfile
 from datetime import datetime
-import base64 # Required to encode audio for the API call
+from gradio_client import Client # <-- Import the new library
 
 app = Flask(__name__)
 CORS(app)
@@ -15,18 +15,6 @@ CORS(app)
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-def call_space_api(audio_bytes, space_url):
-    """
-    Helper function to correctly call a Gradio Space API.
-    """
-    b64_audio = base64.b64encode(audio_bytes).decode()
-    
-    response = requests.post(
-        space_url,
-        json={"data": [ f"data:audio/wav;base64,{b64_audio}" ]}
-    )
-    response.raise_for_status()
-    return response.json()
 
 # --- API Endpoints ---
 @app.route('/api/process', methods=['POST'])
@@ -37,28 +25,45 @@ def process_audio():
     audio_file = request.files['audio']
     model_type = request.form.get('model_type')
 
-    # --- YOUR SPACE URL IS ADDED HERE ---
+    # Define the names of your Spaces
+    toxicity_space = "ooloteam/SomaliSpeechToxicityClassifier"
+    asr_space = "ooloteam/wav2vec2-somali-api" # Make sure this is the correct name for your ASR space
+
     if model_type == 'audio_to_audio':
-        # This is the direct API URL for your working Space.
-        space_api_url = "https://ooloteam-somalitoxicityclassifier.hf.space/api/predict/"
+        space_to_call = toxicity_space
     elif model_type == 'asr_classification':
-        # We will add the ASR Space URL here later.
-        return jsonify({"error": "ASR model is not connected yet. Please test the End-to-End model."}), 400
+        space_to_call = asr_space
     else:
         return jsonify({"error": "Invalid model type"}), 400
-    # ------------------------------------
 
-    audio_bytes = audio_file.read()
+    # Save the uploaded file to a temporary path
+    temp_dir = tempfile.gettempdir()
+    temp_path = os.path.join(temp_dir, secure_filename(audio_file.filename))
+    audio_file.save(temp_path)
 
     try:
-        api_response = call_space_api(audio_bytes, space_api_url)
-        prediction_data = api_response.get("data", [{}])[0]
-        return jsonify({"status": "success", "result": prediction_data})
+        # Connect to the Space using the gradio_client
+        client = Client(space_to_call)
+        
+        # The .predict() method calls the API correctly
+        # The 'api_name' must match the one in your Space's code
+        result = client.predict(
+            input_file=temp_path,
+            api_name="/predict" 
+        )
+        
+        os.remove(temp_path)
+        return jsonify({"status": "success", "result": result})
+        
     except Exception as e:
-        return jsonify({"error": f"An error occurred while calling the Space API: {str(e)}"}), 500
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
-# --- Your Other Endpoints (No changes needed) ---
+# --- Your Other Endpoints ---
+# (No changes needed for these)
+
 @app.route('/api/upload', methods=['POST'])
 def upload_audio():
     if 'audio' not in request.files: return jsonify({'error': 'No audio file provided'}), 400
