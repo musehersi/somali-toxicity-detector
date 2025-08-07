@@ -11,13 +11,7 @@ interface AnalysisResult {
 }
 
 class ApiService {
-  private baseUrl = "from gradio_client import Client, handle_file
-client = Client("ooloteam/SomaliSpeechToxicityClassifier")
-result = client.predict(
-		input_file=handle_file('https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav'),
-		api_name="/predict_toxicity"
-)
-print(result)"; 
+  private baseUrl = https:somali-toxicity-detector.onrender.com; // 🛠️ Change this to your deployed backend URL if needed
 
   /**
    * Upload audio file to backend for storage (e.g., Supabase or disk)
