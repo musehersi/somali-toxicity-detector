@@ -47,7 +47,7 @@ def process_audio():
         
         # The .predict() method calls the API correctly
         result = client.predict(
-            input_file=temp_path,
+            temp_path,
             api_name="/predict" 
         )
         
