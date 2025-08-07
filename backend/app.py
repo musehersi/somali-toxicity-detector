@@ -1,7 +1,7 @@
-# Final, corrected code for backend/app.py with proper CORS
+# Final, corrected code for backend/app.py with the definitive fix
 
 from flask import Flask, request, jsonify
-from flask_cors import CORS # Make sure CORS is imported
+from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import os
 import tempfile
@@ -10,11 +10,9 @@ from gradio_client import Client
 
 app = Flask(__name__)
 
-# --- THIS IS THE CRUCIAL FIX ---
-# We are explicitly telling the server to allow requests from your Vercel frontend.
+# --- Correct CORS Configuration ---
+# This explicitly allows your Vercel frontend to make requests.
 CORS(app, resources={r"/api/*": {"origins": "https://somali-toxicity-detector.vercel.app"}})
-# -----------------------------
-
 
 # --- API Endpoints ---
 @app.route('/api/process', methods=['POST'])
@@ -27,7 +25,8 @@ def process_audio():
 
     # Define the names of your Spaces
     toxicity_space = "ooloteam/SomaliSpeechToxicityClassifier"
-    asr_space = "ooloteam/wav2vec2-somali-api" # Make sure this is the correct name
+    # Make sure this is the correct name for your ASR space when you create it
+    asr_space = "ooloteam/wav2vec2-somali-api" 
 
     if model_type == 'audio_to_audio':
         space_to_call = toxicity_space
@@ -45,11 +44,13 @@ def process_audio():
         # Connect to the Space using the gradio_client
         client = Client(space_to_call)
         
-        # The .predict() method calls the API correctly
+        # --- THIS IS THE FINAL FIX ---
+        # We are now explicitly telling the API that the file is for the 'audio' argument.
         result = client.predict(
-            temp_path,
+            audio=temp_path,
             api_name="/predict" 
         )
+        # ---------------------------
         
         os.remove(temp_path)
         return jsonify({"status": "success", "result": result})
@@ -59,8 +60,26 @@ def process_audio():
             os.remove(temp_path)
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
-# --- Your Other Endpoints ---
-# (No other changes are needed)
+
+# --- Your Other Endpoints (No changes needed) ---
+@app.route('/api/upload', methods=['POST'])
+def upload_audio():
+    if 'audio' not in request.files: return jsonify({'error': 'No audio file provided'}), 400
+    file = request.files['audio']
+    if file.filename == '': return jsonify({'error': 'No file selected'}), 400
+    filename = secure_filename(f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
+    # This UPLOAD_FOLDER logic is for a different feature and can be kept or removed
+    UPLOAD_FOLDER = "uploads"
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    filepath = os.path.join(UPLOAD_FOLDER, filename)
+    file.save(filepath)
+    return jsonify({'url': f'/uploads/{filename}'})
+
+
+@app.route('/api/feedback', methods=['POST'])
+def submit_feedback():
+    return jsonify({"message": "Feedback endpoint called"})
+
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)
