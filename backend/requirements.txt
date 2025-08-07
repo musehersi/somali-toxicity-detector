@@ -4,6 +4,4 @@ gunicorn
 pydub
 requests
 scipy
-
-
-
+gradio_client
